@@ -26,7 +26,7 @@ headers = {
         :return:
         """
 
-        r = requests.get(url)
+        r = requests.get(url)                                                   #由于JS加载，没有找到read_vol等个别元素
         s = etree.HTML(r.text)
         read_vol = s.xpath('//*[@id="zwmbtilr"]/span[1]/text()')
         comment_vol = s.xpath('//*[@id="zwmbtilr"]/span[2]/text()')
