@@ -1,0 +1,46 @@
+import requests
+from lxml import etree
+import pandas as pd
+import xlrd
+import traceback
+import time
+from fake_useragent import UserAgent
+from pymongo import MongoClient
+import socket
+    
+class DongFangCaiFuSpider(object):
+    
+    def get_guba(self):
+        """获取所有的股吧链接"""
+        headers = {
+            'Cookie': 'st_pvi=07289511176421; emstat_bc_emcount=8269995271467659399; em_hq_fls=js; qgqp_b_id=16bc6c0db9'
+                      'e5834747e5244ce183dbf2; HAList=a-sz-300059-%u4E1C%u65B9%u8D22%u5BCC%2Ca-sz-000063-%u4E2D%u5174%u901A%u8BA'
+                      'F; ct=EQOdBZdiQKgjLDjjLKpPt2J1wu1bik6OjrvrXcEarEDdVz7TOcEJPll5zcUT8vg0_r9jzABole2ATQ69EUop408CQIuiOeCOtqJC'
+                      '-Ib4sD3zhLhyJt9DCT1xKLicsPAjKjo7MXiN4QCZqdwQYMokh7zZdcT9qKan947y8JFfzTs; ut=FobyicMgeV52Ad4fCxim_G3WfDRv5X'
+                      'tGWFKS1QF9xEiueMg253yd2gIURXeK3Y0Fk7K2V7nUh5pyUMPty8ZcRCwLQr_CZDw6OOoPJo5mDqz7M15gbGPixJXsKgqLOIjEGatLngak'
+                      '9iJZy_G3jW5hCH6rQWkrudbvNx2_tRSG6fIowc-Fz8JTgTiTSyARy5VmH1aoD_voTq5S162ZlvfvSlvLQ-1tXqjzMANMEGndJZ5m9W_d6p'
+                      'sQ5uMJSv4A2dKYnOzozp3D9ueJj2qKf1C8YInqydKDCf2A; pi=8116065114287126%3bu8116065114287126%3b%e8%82%a1%e5%8f%'
+                      '8bKxq4nV%3bEC%2bz9e14Sjom05tMAtFVCoE3cxK0KDhZ6mR8T9dDRyP%2flZvkdobkvQNUset7aIAWYnAfD0qVfNGFMHZHkckIqVNxZRO'
+                      'KEecJdddhlqCKsuN3b0FbQOfPiqeGS7Mi3gZlX66vzUzJFi%2bSVlZGTBA85oFp%2bOTu%2f6fLBBpKdjyz4GqDN1ZQq1I1hBnAS5cJ2Aa'
+                      '9gdePRe%2br%3biN%2f8t64k98erR5LNCwM2XK%2fsakeQf2bmHbnMnLRTzuS99XbJJR4LtXHCFS7hijcfwVpPV3u0l1LDXsnb5OaVFNFT'
+                      '0e0Vefcepetj4m%2bNw20ddTJLWPndGm1l9J%2bwdW7IkZrNusQOn%2f5QGxreCvpZX47rEcrVrg%3d%3d; uidal=8116065114287126'
+                      '%e8%82%a1%e5%8f%8bKxq4nV; sid=114124340; vtpst=|; emstat_ss_emcount=5_1513351193_2439751672',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.'
+                          '3239.84 Safari/537.36',
+            'Upgrade-Insecure-Requests': '1'
+        }  # 对应的headers信息
+
+        url = 'http://guba.eastmoney.com/remenba.aspx?type=1'
+        r = requests.get(url, headers=headers).text
+        s = etree.HTML(r)
+        stock_num = s.xpath('/html/body/div[5]/div[2]/div[1]/div/ul/li/a/@href')
+        for url in stock_num:
+            urls = 'http://guba.eastmoney.com/list,' + url[6:17]
+            d = {'url': urls}
+            print(d)
+            client = MongoClient()
+            db = client.dongfangcaifu  # 创建一个dongfangcaifu数据库
+            my_set = db.guba_url
+            my_set.insert(d)  # 插入数据
+            _ = self
+        return []
