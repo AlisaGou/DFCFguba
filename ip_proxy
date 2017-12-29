@@ -1,0 +1,42 @@
+import requests
+from lxml import etree
+from fake_useragent import UserAgent
+from pymongo import MongoClient
+import socket
+
+def request_get(url, *args, **kwargs):
+    """将请求链接包一层，可以统一处理异常，应对一些突发状况，比如统一上代理"""
+    r = requests.get(url, *args, **kwargs)   
+    headers = {
+        'Cookie': '_free_proxy_session=BAh7B0kiD3Nlc3Npb25faWQGOgZFVEkiJTNhYmYzZmE2OTNmNGYzY2U0ZjM3MWJkMTRkYW'
+                  'M3OTY5BjsAVEkiEF9jc3JmX3Rva2VuBjsARkkiMW1JT0hSVTFOV013WUk4TTI0ZU1QMkx2KzFweDN0MlF4N3F4WW51TWJWbTg9B'
+                  'jsARg%3D%3D--28352b3dbf5c190ec3e77677bfe659707af53a62; Hm_lvt_0cf76c77469e965d2957f0553e6ecf59=1514'
+                  '345289; Hm_lpvt_0cf76c77469e965d2957f0553e6ecf59=1514345289',
+        'If-None-Match': 'W/"046d24145ae6941a3c8238ae60e6f63e"',
+        'Upgrade-Insecure-Requests': '1',
+    }
+    ua = UserAgent()  # 设置
+    headers['User-Agent'] = ua.random  # 使用fake-Agent随机生成User-Agent，添加到headers
+    url = 'http://www.xicidaili.com/nn/'
+    r = requests.get(url, headers=headers).text
+    s = etree.HTML(r)
+    proxy_ip = s.xpath('//*[@id="ip_list"]/tr/td[2]/text()')
+    proxy_port = s.xpath('//*[@id="ip_list"]/tr/td[3]/text()')
+
+    proxies = []
+    for i in range(min(len(proxy_port), len(proxy_ip))):
+        proxy = 'http://' + proxy_ip[i] + ':' + proxy_port[i]
+        ipproxy = {'http': proxy}
+        proxies.append(ipproxy)
+
+    socket.setdefaulttimeout(3)                                   #这里以下，输出结果不是很理想：得不到想要的IP地址
+    url = "http://ip.chinaz.com/getip.aspx"
+    for proxy in proxies:
+        try:
+            r = requests.get(url, proxies=proxy).text()
+            print(r)
+        except Exception as e:
+            print(proxy)
+            print(e)
+            continue
+    return r
