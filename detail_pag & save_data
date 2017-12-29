@@ -1,0 +1,53 @@
+headers = {
+        'Cookie': 'st_pvi=07289511176421; emstat_bc_emcount=8269995271467659399; em_hq_fls=js; qgqp_b_id=16bc6'
+                  'c0db9e5834747e5244ce183dbf2; HAList=a-sz-300059-%u4E1C%u65B9%u8D22%u5BCC%2Ca-sz-000063-%u4E2'
+                  'D%u5174%u901A%u8BAF; st_si=62317377700088; EmPaVCodeCo=47ebe00218714631853a7a63f9928ab7; sid=1'
+                  '14124340; vtpst=|; ct=ugJ70hWNaio7gPXQTxtTmpLDLh6sdrL8j2rybQIxbDSghfWwbEd_BKHXJriuASTodXFak296K'
+                  'Orlfkxzrbu-NT-U8hpjvtKu3mXqgcyCqO5MJltGLp76DVw_L9ucdTq3hYzozM9aRJ0auXb4A70zvYuCRYtRVO8mQImUy0s'
+                  'hj-E; ut=FobyicMgeV7MP9QJfNEgf8-r9TbKvL5aHhpxUzw7ocvpUgxAb33dnUCv07IaWIFM2GVZHu0fHIdMv8s1jhp0lS'
+                  'WWXjKnSHcQ_Y09rQC1zYUppyOE9wWA5GWXcNRkN0DFEHtiM8VksgjrIAhnWVqslFpiiMOSTgKw9zOeY2sx2OxuZ077q0SGy4'
+                  'BCLG9jY9Vr4SsRaLXwAbpavWMsSCGITBDXDv516Bf9hMNgvbVb-BL-8KgHQWxGjuw2-77DqJyNrYop94tGwlCVSCacv2rUUjB'
+                  'o8HyR9qCI; pi=8116065114287126%3bu8116065114287126%3bAlisaGou%3bTIVcVA9AyoQiZGOIe5yV36bl5oaXoirEJ'
+                  'hVeWh7QdvNf3OVN2%2bVR4FrL3hKFB8V2LzXVwJjzYErPHtx27DTCigSc5OaPon3OvqD%2fMUANcQ2IPRINC7tXrbFotgjh8i'
+                  'oEsYHrZCw6qmNB65r2%2bfNM7jjpsAW%2fZvB6g8Au5h1F6UiYyzixg65mZz5rUb2MAHKTbbt%2fRVFW%3bTS8P9EuPHU6wSEH'
+                  'TJNZBTrv%2fy0vhBPzopUd783nknn2rMvcMyjUu7btn2dCve6yKiPMf9c97%2b7LwtYeQcZC%2ffU6iRriJy8ojLxn%2bfejWb'
+                  'jPNYF4mw06Xmqgp3QYg8WxaFkU7TnozQWGRBkknMHUIM2sHwoyZNQ%3d%3d; uidal=8116065114287126AlisaGou; emstat'
+                  '_ss_emcount=24_1513377935_3906866301',
+        'Upgrade-Insecure-Requests': '1',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.323'
+                      '9.84 Safari/537.36'
+    }
+
+
+    def detail_pag(self, url):
+        """
+        详情页抓取函数
+        :param url: 详情页url
+        :return:
+        """
+
+        r = requests.get(url)
+        s = etree.HTML(r.text)
+        read_vol = s.xpath('//*[@id="zwmbtilr"]/span[1]/text()')
+        comment_vol = s.xpath('//*[@id="zwmbtilr"]/span[2]/text()')
+        refer_vol = s.xpath('//*[@id="zwmbtilr"]/span[3]/a/span/text()')
+        publisher = s.xpath('//*[@id="zwconttbn"]/strong/a/text()')
+        age = s.xpath('//*[@id="zwconttbn"]/span/span[2]/text()')
+        time_ = s.xpath('//*[@id="zwconttb"]/div[2]/text()')
+        title = s.xpath('//*[@id="zwconttbt"]/text()')
+        content = s.xpath('//*[@id="zwconbody"]/div/text()')
+
+        file = (read_vol, comment_vol, refer_vol, publisher, age, time_, title, content)
+
+        self.save_data(file)
+
+    def save_data(self, data):
+        """保存数据函数，自行实现"""
+        client = MongoClient()
+        db = client.dongfangcaifu  # 创建一个dongfangcaifu数据库
+        my_set = db.guba_i  # 第i个股吧的集合
+        my_set.insert(file)  # 插入数据
+        _ = self
+        _ = data
+        # df = pd.DataFrame.from_dict(readVol, contentsVol, referVol,publisher,age, time, title, content)
+        # df.to_excel('tiezis.xlsx')
