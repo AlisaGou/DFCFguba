@@ -1,0 +1,188 @@
+#! /usr/bin/env python
+#  coding = utf-8
+# Author = Alisa
+
+import requests
+from lxml import etree
+import pandas as pd
+import xlrd
+import traceback
+import time
+from fake_useragent import UserAgent
+from pymongo import MongoClient
+import socket
+
+
+def request_get(url, *args, **kwargs):
+    """将请求链接包一层，可以统一处理异常，应对一些突发状况，比如统一上代理"""
+    r = requests.get(url, *args, **kwargs)
+    headers = {
+        'Cookie': '_free_proxy_session=BAh7B0kiD3Nlc3Npb25faWQGOgZFVEkiJTNhYmYzZmE2OTNmNGYzY2U0ZjM3MWJkMTRkYW'
+                  'M3OTY5BjsAVEkiEF9jc3JmX3Rva2VuBjsARkkiMW1JT0hSVTFOV013WUk4TTI0ZU1QMkx2KzFweDN0MlF4N3F4WW51TWJWbTg9B'
+                  'jsARg%3D%3D--28352b3dbf5c190ec3e77677bfe659707af53a62; Hm_lvt_0cf76c77469e965d2957f0553e6ecf59=1514'
+                  '345289; Hm_lpvt_0cf76c77469e965d2957f0553e6ecf59=1514345289',
+        'If-None-Match': 'W/"046d24145ae6941a3c8238ae60e6f63e"',
+        'Upgrade-Insecure-Requests': '1',
+    }
+    ua = UserAgent()  # 设置
+    headers['User-Agent'] = ua.random  # 使用fake-Agent随机生成User-Agent，添加到headers
+    url = 'http://www.xicidaili.com/nn/'
+    r = requests.get(url, headers=headers).text
+    s = etree.HTML(r)
+    proxy_ip = s.xpath('//*[@id="ip_list"]/tr/td[2]/text()')
+    proxy_port = s.xpath('//*[@id="ip_list"]/tr/td[3]/text()')
+
+    proxies = []
+    for i in range(min(len(proxy_port), len(proxy_ip))):
+        proxy = 'http://' + proxy_ip[i] + ':' + proxy_port[i]
+        ipproxy = {'http': proxy}
+        proxies.append(ipproxy)
+
+    socket.setdefaulttimeout(3)
+    url = "http://ip.chinaz.com/getip.aspx"
+    for proxy in proxies:
+        try:
+            r = requests.get(url, proxies=proxy).text()
+            print(r)
+        except Exception as e:
+            print(proxy)
+            print(e)
+            continue
+    return r
+
+
+class DongFangCaiFuSpider(object):
+
+    def get_guba(self):
+        """获取所有的股吧链接"""
+        headers = {
+            'Cookie': 'st_pvi=07289511176421; emstat_bc_emcount=8269995271467659399; em_hq_fls=js; qgqp_b_id=16bc6c0db9'
+                      'e5834747e5244ce183dbf2; HAList=a-sz-300059-%u4E1C%u65B9%u8D22%u5BCC%2Ca-sz-000063-%u4E2D%u5174%u901A%u8BA'
+                      'F; ct=EQOdBZdiQKgjLDjjLKpPt2J1wu1bik6OjrvrXcEarEDdVz7TOcEJPll5zcUT8vg0_r9jzABole2ATQ69EUop408CQIuiOeCOtqJC'
+                      '-Ib4sD3zhLhyJt9DCT1xKLicsPAjKjo7MXiN4QCZqdwQYMokh7zZdcT9qKan947y8JFfzTs; ut=FobyicMgeV52Ad4fCxim_G3WfDRv5X'
+                      'tGWFKS1QF9xEiueMg253yd2gIURXeK3Y0Fk7K2V7nUh5pyUMPty8ZcRCwLQr_CZDw6OOoPJo5mDqz7M15gbGPixJXsKgqLOIjEGatLngak'
+                      '9iJZy_G3jW5hCH6rQWkrudbvNx2_tRSG6fIowc-Fz8JTgTiTSyARy5VmH1aoD_voTq5S162ZlvfvSlvLQ-1tXqjzMANMEGndJZ5m9W_d6p'
+                      'sQ5uMJSv4A2dKYnOzozp3D9ueJj2qKf1C8YInqydKDCf2A; pi=8116065114287126%3bu8116065114287126%3b%e8%82%a1%e5%8f%'
+                      '8bKxq4nV%3bEC%2bz9e14Sjom05tMAtFVCoE3cxK0KDhZ6mR8T9dDRyP%2flZvkdobkvQNUset7aIAWYnAfD0qVfNGFMHZHkckIqVNxZRO'
+                      'KEecJdddhlqCKsuN3b0FbQOfPiqeGS7Mi3gZlX66vzUzJFi%2bSVlZGTBA85oFp%2bOTu%2f6fLBBpKdjyz4GqDN1ZQq1I1hBnAS5cJ2Aa'
+                      '9gdePRe%2br%3biN%2f8t64k98erR5LNCwM2XK%2fsakeQf2bmHbnMnLRTzuS99XbJJR4LtXHCFS7hijcfwVpPV3u0l1LDXsnb5OaVFNFT'
+                      '0e0Vefcepetj4m%2bNw20ddTJLWPndGm1l9J%2bwdW7IkZrNusQOn%2f5QGxreCvpZX47rEcrVrg%3d%3d; uidal=8116065114287126'
+                      '%e8%82%a1%e5%8f%8bKxq4nV; sid=114124340; vtpst=|; emstat_ss_emcount=5_1513351193_2439751672',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.'
+                          '3239.84 Safari/537.36',
+            'Upgrade-Insecure-Requests': '1'
+        }  # 对应的headers信息
+
+        url = 'http://guba.eastmoney.com/remenba.aspx?type=1'
+        r = requests.get(url, headers=headers).text
+        s = etree.HTML(r)
+        stock_num = s.xpath('/html/body/div[5]/div[2]/div[1]/div/ul/li/a/@href')
+        for url in stock_num:
+            urls = 'http://guba.eastmoney.com/list,' + url[6:17]
+            d = {'url': urls}
+            print(d)
+            client = MongoClient()
+            db = client.dongfangcaifu  # 创建一个dongfangcaifu数据库
+            my_set = db.guba_url
+            my_set.insert(d)  # 插入数据
+            _ = self
+        return []
+
+    def get_page_num(self):
+        """获取页码"""
+        urls = self.get_guba()
+        for url in urls:  # 遍历每个url
+            r = requests.get(url.text)  # 获取url链接
+            s = etree.HTML(r)  # 解析网页
+            page_num = s.xpath('//*[@id="articlelistnew"]/div[87]/span/span/span')  # 获得个股股吧页数
+            _ = self
+        return 5
+
+    def list_pag(self, url_format):
+        """爬取帖子链接，并抓取详情页"""
+        _ = self
+        page = self.get_page_num()
+
+        for i in range(page):  # 遍历股吧页数
+            ua = UserAgent()  # 设置代理
+            self.headers['User-Agent'] = ua.random  # 使用fake-Agent随机生成User-Agent，添加到headers
+            r = request_get(url_format, headers=self.headers).text
+
+            try:
+                s = etree.HTML(r)
+                tiezi_url = s.xpath('//*[@id="articlelistnew"]/div/span[3]/a/@href')
+                for url in tiezi_url:
+                    urls = 'http://guba.eastmoney.com' + url[0:16]
+                    for url in urls:
+                        self.detail_pag(url)  # 自动抓取详情页
+                        print('正在爬取第%s页' % str(i + 1))  # 打印"正在爬取第n页"
+                        time.sleep(1)  # 设置爬取网页的时间间隔为2秒
+
+            except Exception as e:
+                _ = e
+                print(url_format, r)
+                traceback.print_exc()
+
+    headers = {
+        'Cookie': 'st_pvi=07289511176421; emstat_bc_emcount=8269995271467659399; em_hq_fls=js; qgqp_b_id=16bc6'
+                  'c0db9e5834747e5244ce183dbf2; HAList=a-sz-300059-%u4E1C%u65B9%u8D22%u5BCC%2Ca-sz-000063-%u4E2'
+                  'D%u5174%u901A%u8BAF; st_si=62317377700088; EmPaVCodeCo=47ebe00218714631853a7a63f9928ab7; sid=1'
+                  '14124340; vtpst=|; ct=ugJ70hWNaio7gPXQTxtTmpLDLh6sdrL8j2rybQIxbDSghfWwbEd_BKHXJriuASTodXFak296K'
+                  'Orlfkxzrbu-NT-U8hpjvtKu3mXqgcyCqO5MJltGLp76DVw_L9ucdTq3hYzozM9aRJ0auXb4A70zvYuCRYtRVO8mQImUy0s'
+                  'hj-E; ut=FobyicMgeV7MP9QJfNEgf8-r9TbKvL5aHhpxUzw7ocvpUgxAb33dnUCv07IaWIFM2GVZHu0fHIdMv8s1jhp0lS'
+                  'WWXjKnSHcQ_Y09rQC1zYUppyOE9wWA5GWXcNRkN0DFEHtiM8VksgjrIAhnWVqslFpiiMOSTgKw9zOeY2sx2OxuZ077q0SGy4'
+                  'BCLG9jY9Vr4SsRaLXwAbpavWMsSCGITBDXDv516Bf9hMNgvbVb-BL-8KgHQWxGjuw2-77DqJyNrYop94tGwlCVSCacv2rUUjB'
+                  'o8HyR9qCI; pi=8116065114287126%3bu8116065114287126%3bAlisaGou%3bTIVcVA9AyoQiZGOIe5yV36bl5oaXoirEJ'
+                  'hVeWh7QdvNf3OVN2%2bVR4FrL3hKFB8V2LzXVwJjzYErPHtx27DTCigSc5OaPon3OvqD%2fMUANcQ2IPRINC7tXrbFotgjh8i'
+                  'oEsYHrZCw6qmNB65r2%2bfNM7jjpsAW%2fZvB6g8Au5h1F6UiYyzixg65mZz5rUb2MAHKTbbt%2fRVFW%3bTS8P9EuPHU6wSEH'
+                  'TJNZBTrv%2fy0vhBPzopUd783nknn2rMvcMyjUu7btn2dCve6yKiPMf9c97%2b7LwtYeQcZC%2ffU6iRriJy8ojLxn%2bfejWb'
+                  'jPNYF4mw06Xmqgp3QYg8WxaFkU7TnozQWGRBkknMHUIM2sHwoyZNQ%3d%3d; uidal=8116065114287126AlisaGou; emstat'
+                  '_ss_emcount=24_1513377935_3906866301',
+        'Upgrade-Insecure-Requests': '1',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.323'
+                      '9.84 Safari/537.36'
+    }
+
+
+    def detail_pag(self, url):
+        """
+        详情页抓取函数
+        :param url: 详情页url
+        :return:
+        """
+
+        r = requests.get(url)
+        s = etree.HTML(r.text)
+        read_vol = s.xpath('//*[@id="zwmbtilr"]/span[1]/text()')
+        comment_vol = s.xpath('//*[@id="zwmbtilr"]/span[2]/text()')
+        refer_vol = s.xpath('//*[@id="zwmbtilr"]/span[3]/a/span/text()')
+        publisher = s.xpath('//*[@id="zwconttbn"]/strong/a/text()')
+        age = s.xpath('//*[@id="zwconttbn"]/span/span[2]/text()')
+        time_ = s.xpath('//*[@id="zwconttb"]/div[2]/text()')
+        title = s.xpath('//*[@id="zwconttbt"]/text()')
+        content = s.xpath('//*[@id="zwconbody"]/div/text()')
+
+        file = (read_vol, comment_vol, refer_vol, publisher, age, time_, title, content)
+
+        self.save_data(file)
+
+    def save_data(self, data):
+        """保存数据函数，自行实现"""
+        client = MongoClient()
+        db = client.dongfangcaifu  # 创建一个dongfangcaifu数据库
+        my_set = db.guba_i  # 第i个股吧的集合
+        my_set.insert(file)  # 插入数据
+        _ = self
+        _ = data
+        # df = pd.DataFrame.from_dict(readVol, contentsVol, referVol,publisher,age, time, title, content)
+        # df.to_excel('tiezis.xlsx')
+
+
+
+if __name__ == '__main__':
+    """执行入口"""
+    spider = DongFangCaiFuSpider()                       # 生产一个爬虫对象
+    guba_url_format_list = spider.get_guba()             # 抓取所有的股吧的样例url
+
+    for url_format_ in guba_url_format_list:             # 遍历
+        spider.list_pag(url_format_)                     # 抓取列表页， 列表页自动抓取详情页。
