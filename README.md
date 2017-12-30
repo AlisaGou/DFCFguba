@@ -5,7 +5,7 @@
 2、收集东方财富网http://guba.eastmoney.com/remenba.aspx?type=1 股吧链接；
 3、点击进入各个股吧链接，抓取帖子总页数和帖子链接；
 4、点击进入各个帖子链接，抓取相应元素；
-5、保存再数据库MongoDB中。
+5、保存到数据库MongoDB中。
 
 要点：
 1、IP代理；
