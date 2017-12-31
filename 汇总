@@ -4,8 +4,6 @@
 
 import requests
 from lxml import etree
-import pandas as pd
-import xlrd
 import traceback
 import time
 from fake_useragent import UserAgent
@@ -29,7 +27,7 @@ def request_get(url, *args, **kwargs):
     url = 'http://www.xicidaili.com/nn/'
     r = requests.get(url, headers=headers).text
     s = etree.HTML(r)
-    proxy_ip = s.xpath('//*[@id="ip_list"]/tr/td[2]/text()')
+    proxy_ip = s.xpath('//*[@id="ip_list"]/tr/td[2]/text()')    #在西刺代理网站爬取国内免费IP
     proxy_port = s.xpath('//*[@id="ip_list"]/tr/td[3]/text()')
 
     proxies = []
@@ -39,7 +37,7 @@ def request_get(url, *args, **kwargs):
         proxies.append(ipproxy)
 
     socket.setdefaulttimeout(3)
-    url = "http://ip.chinaz.com/getip.aspx"
+    url = "http://ip.chinaz.com/getip.aspx"      #验证免费IP，选取其中可访问，信号好的
     for proxy in proxies:
         try:
             r = requests.get(url, proxies=proxy).text()
@@ -88,8 +86,8 @@ class DongFangCaiFuSpider(object):
             _ = self
         return []
 
-    def get_page_num(self):
-        """获取页码"""
+    def get_page_num(self, page_num):
+        """获取帖子页码"""
         urls = self.get_guba()
         for url in urls:  # 遍历每个url
             r = requests.get(url.text)  # 获取url链接
@@ -110,7 +108,13 @@ class DongFangCaiFuSpider(object):
 
             try:
                 s = etree.HTML(r)
+                stock_name = s.xpath('//*[@id="stockname"]/a/text()')
+                #stock_num =                                     #考虑加入股吧链接中的编号
                 tiezi_url = s.xpath('//*[@id="articlelistnew"]/div/span[3]/a/@href')
+                read_vol = s.xpath('//*[@id="articlelistnew"]/div/span[1]/text()')
+                comment_vol = s.xpath('//*[@id="articlelistnew"]/div/span[2]/text()')
+
+
                 for url in tiezi_url:
                     urls = 'http://guba.eastmoney.com' + url[0:16]
                     for url in urls:
@@ -122,6 +126,11 @@ class DongFangCaiFuSpider(object):
                 _ = e
                 print(url_format, r)
                 traceback.print_exc()
+
+        data = (stock_name, stock_num, tiezi_url, read_vol, comment_vol, self.detail_pag())
+
+        self.save_data()
+
 
     headers = {
         'Cookie': 'st_pvi=07289511176421; emstat_bc_emcount=8269995271467659399; em_hq_fls=js; qgqp_b_id=16bc6'
@@ -150,28 +159,26 @@ class DongFangCaiFuSpider(object):
         :param url: 详情页url
         :return:
         """
+        url = self.list_pag()
 
         r = requests.get(url)
         s = etree.HTML(r.text)
-        read_vol = s.xpath('//*[@id="zwmbtilr"]/span[1]/text()')
-        comment_vol = s.xpath('//*[@id="zwmbtilr"]/span[2]/text()')
-        refer_vol = s.xpath('//*[@id="zwmbtilr"]/span[3]/a/span/text()')
+
         publisher = s.xpath('//*[@id="zwconttbn"]/strong/a/text()')
         age = s.xpath('//*[@id="zwconttbn"]/span/span[2]/text()')
         time_ = s.xpath('//*[@id="zwconttb"]/div[2]/text()')
         title = s.xpath('//*[@id="zwconttbt"]/text()')
         content = s.xpath('//*[@id="zwconbody"]/div/text()')
 
-        file = (read_vol, comment_vol, refer_vol, publisher, age, time_, title, content)
-
-        self.save_data(file)
+        d = (publisher, age, time_, title, title, content)
+        _ = self
 
     def save_data(self, data):
-        """保存数据函数，自行实现"""
+        """保存数据函数"""
         client = MongoClient()
         db = client.dongfangcaifu  # 创建一个dongfangcaifu数据库
-        my_set = db.guba_i  # 第i个股吧的集合
-        my_set.insert(file)  # 插入数据
+        my_set = db.guba  # 股吧的集合
+        my_set.insert(data)
         _ = self
         _ = data
         # df = pd.DataFrame.from_dict(readVol, contentsVol, referVol,publisher,age, time, title, content)
