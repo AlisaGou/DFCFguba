@@ -11,7 +11,7 @@ from pymongo import MongoClient
 import socket
 
 
-def request_get(url, *args, **kwargs):
+def request_get(self):  # proxies是函数的变量吗？
     """将请求链接包一层，可以统一处理异常，应对一些突发状况，比如统一上代理"""
 
     headers = {
@@ -22,35 +22,36 @@ def request_get(url, *args, **kwargs):
         'If-None-Match': 'W/"046d24145ae6941a3c8238ae60e6f63e"',
         'Upgrade-Insecure-Requests': '1',
     }
-    ua = UserAgent()  # 设置
-    headers['User-Agent'] = ua.random  # 使用fake-Agent随机生成User-Agent，添加到headers
-    url = 'http://www.xicidaili.com/nn/'
+    ua = UserAgent()  # 设置UserAgent
+    headers['User-Agent'] = ua.random  # 使用fake-Agent随机生成多个User-Agent，添加到headers
+    url = 'http://www.xicidaili.com/nn/'  # 在西刺代理网站爬取国内免费IP
     r = requests.get(url, headers=headers).text
     s = etree.HTML(r)
-    proxy_ip = s.xpath('//*[@id="ip_list"]/tr/td[2]/text()')    #在西刺代理网站爬取国内免费IP
-    proxy_port = s.xpath('//*[@id="ip_list"]/tr/td[3]/text()')
+    proxy_ip = s.xpath('//*[@id="ip_list"]/tr/td[2]/text()')  # 获取代理IP
+    proxy_port = s.xpath('//*[@id="ip_list"]/tr/td[3]/text()')  # 获取代理端口
 
-    proxies = []
+    proxies = []  # 设置代理列表
     for i in range(min(len(proxy_port), len(proxy_ip))):
         proxy = 'http://' + proxy_ip[i] + ':' + proxy_port[i]
         ip_proxy = {'http': proxy}
         proxies.append(ip_proxy)
 
-    socket.setdefaulttimeout(3)
-    url = "http://ip.chinaz.com/getip.aspx"      #验证免费IP，选取其中可访问，信号好的
+    socket.setdefaulttimeout(3)  # 3秒延时请求
+    url = "http://ip.chinaz.com/getip.aspx"  # 验证免费IP，选取其中可访问，信号好的
     for proxy in proxies:
         try:
             r = requests.get(url, proxies=proxy).text()
-            print(r)
+            print(r)  # 打印可访问的proxy
         except Exception as e:
             print(proxy)
             print(e)
             continue
-    return r
+
+    _ = self
+    return proxy  # 返回值 proxy 可以吗？后文如何使用？
 
 
 class DongFangCaiFuSpider(object):
-
     def get_guba(self):
         """获取所有的股吧链接"""
         headers = {
@@ -71,103 +72,98 @@ class DongFangCaiFuSpider(object):
             'Upgrade-Insecure-Requests': '1'
         }  # 对应的headers信息
 
-        url = 'http://guba.eastmoney.com/remenba.aspx?type=1'
+        url = 'http://guba.eastmoney.com/remenba.aspx?type=1'  # 访问东方财富网股吧首页
         r = requests.get(url, headers=headers).text
         s = etree.HTML(r)
         stock_num = s.xpath('/html/body/div[5]/div[2]/div[1]/div/ul/li/a/@href')
-        for url in stock_num:
-            urls = 'http://guba.eastmoney.com/list,' + url[6:17]
-            d = {'url': urls}
+        for url in stock_num:  # 获取所有证券市场股票对应的东方财富网的股吧链接
+            urls = url[6:12]
+            d = {'stock_num': urls}
             print(d)
             client = MongoClient()
             db = client.dongfangcaifu  # 创建一个dongfangcaifu数据库
             my_set = db.guba_url
-            my_set.insert(d)  # 插入数据
-            _ = self
-        return []
+            my_set.insert(d)  # 插入股吧链接数据,如http://guba.eastmoney.com/list,600000.html
+            _ = self  # 传为self参数
+        return urls  # 返回一个urls股吧列表
 
     def get_page_num(self):
         """获取帖子页码"""
-        urls = self.get_guba()
+        urls = self.get_guba()  # 定义股吧链接为 urls
         for url in urls:  # 遍历每个url
-            r = requests.get(url.text)  # 获取url链接
+            r = requests.get(url).text  # 获取url链接
             s = etree.HTML(r)  # 解析网页
-            page_num = s.xpath('//*[@id="articlelistnew"]/div/span/span/span')  # 获得个股股吧页数
+            page_num = s.xpath('//*[@id="articlelistnew"]/div/span/span/span')  # 获得个股股吧最大页数，无法解决JS加载？
             _ = self
-        return []
-
-
+        return page_num   #返回page_num，这样写妥否？还是写return或者return[]
 
     def list_pag(self, url_format):
         """爬取帖子链接，并抓取详情页"""
-        _ = self
-        page = self.get_page_num()
-        ua = UserAgent()  # 设置代理
+        urls = self.get_guba()
+        page_num = self.get_page_num()
+        ua = UserAgent()
         self.headers['User-Agent'] = ua.random  # 使用fake-Agent随机生成User-Agent，添加到headers
 
-        url_format = 'http://guba.eastmoney.com/list,{}_{}.html'.format(url,i)  # url改变，页码翻页
+        url_format =['http://guba.eastmoney.com/list,{}_{}.html' .format(str(urls), str(i)) for i in range(1, page_num, 1)]  # url改变，如何添加页码翻页？
         r = request_get(url_format.format(), headers=self.headers).text
 
         try:
             s = etree.HTML(r)
-            stock_name = s.xpath('//*[@id="stockname"]/a/text()')
-            #stock_num =                                     #考虑加入股吧链接中的编号
-            tiezi_url = s.xpath('//*[@id="articlelistnew"]/div/span[3]/a/@href')
-            read_vol = s.xpath('//*[@id="articlelistnew"]/div/span[1]/text()')
-            comment_vol = s.xpath('//*[@id="articlelistnew"]/div/span[2]/text()')
+            stock_name = s.xpath('//*[@id="stockname"]/a/text()')  # 股票名称
+            stock_num = self.get_guba()                      # 股吧编号,能否这样写？
+            tiezi_url = s.xpath('//*[@id="articlelistnew"]/div/span[3]/a/@href')  # 帖子链接
+            read_vol = s.xpath('//*[@id="articlelistnew"]/div/span[1]/text()')  # 阅读量
+            comment_vol = s.xpath('//*[@id="articlelistnew"]/div/span[2]/text()')  # 评论量
 
-            for index, url in enumerate(tiezi_url):
+            for index, url in enumerate(tiezi_url):  # 一个索引类型遍历帖子链接
+                urls = ['http://guba.eastmoney.com{}'.format(str(url))]  # 帖子链接
 
-                urls = ['http://guba.eastmoney.com{}'.format(str(url))]
-
-                self.detail_pag(urls, stock_name[index],read_vol[index],comment_vol[index])  # 自动抓取详情页
-                print('正在爬取第%s页' % str(i + 1))  # 打印"正在爬取第n页"
+                self.detail_pag(urls, stock_name[index], stock_num[index], read_vol[index], comment_vol[index])  # 自动抓取详情页
+                print('正在爬取第%s页' % str(url + 1))  # 打印"正在爬取第n页"
                 time.sleep(1)  # 设置爬取网页的时间间隔为1秒
 
         except Exception as e:
-            _ = e
-            print(url_format, r)
+            _ = e    # 啥意思？？
+            print(url_format, r)  # 打印报错信息
             traceback.print_exc()
 
 
-    headers = {
-        'Cookie': 'st_pvi=07289511176421; emstat_bc_emcount=8269995271467659399; em_hq_fls=js; qgqp_b_id=16bc6'
-                  'c0db9e5834747e5244ce183dbf2; HAList=a-sz-300059-%u4E1C%u65B9%u8D22%u5BCC%2Ca-sz-000063-%u4E2'
-                  'D%u5174%u901A%u8BAF; st_si=62317377700088; EmPaVCodeCo=47ebe00218714631853a7a63f9928ab7; sid=1'
-                  '14124340; vtpst=|; ct=ugJ70hWNaio7gPXQTxtTmpLDLh6sdrL8j2rybQIxbDSghfWwbEd_BKHXJriuASTodXFak296K'
-                  'Orlfkxzrbu-NT-U8hpjvtKu3mXqgcyCqO5MJltGLp76DVw_L9ucdTq3hYzozM9aRJ0auXb4A70zvYuCRYtRVO8mQImUy0s'
-                  'hj-E; ut=FobyicMgeV7MP9QJfNEgf8-r9TbKvL5aHhpxUzw7ocvpUgxAb33dnUCv07IaWIFM2GVZHu0fHIdMv8s1jhp0lS'
-                  'WWXjKnSHcQ_Y09rQC1zYUppyOE9wWA5GWXcNRkN0DFEHtiM8VksgjrIAhnWVqslFpiiMOSTgKw9zOeY2sx2OxuZ077q0SGy4'
-                  'BCLG9jY9Vr4SsRaLXwAbpavWMsSCGITBDXDv516Bf9hMNgvbVb-BL-8KgHQWxGjuw2-77DqJyNrYop94tGwlCVSCacv2rUUjB'
-                  'o8HyR9qCI; pi=8116065114287126%3bu8116065114287126%3bAlisaGou%3bTIVcVA9AyoQiZGOIe5yV36bl5oaXoirEJ'
-                  'hVeWh7QdvNf3OVN2%2bVR4FrL3hKFB8V2LzXVwJjzYErPHtx27DTCigSc5OaPon3OvqD%2fMUANcQ2IPRINC7tXrbFotgjh8i'
-                  'oEsYHrZCw6qmNB65r2%2bfNM7jjpsAW%2fZvB6g8Au5h1F6UiYyzixg65mZz5rUb2MAHKTbbt%2fRVFW%3bTS8P9EuPHU6wSEH'
-                  'TJNZBTrv%2fy0vhBPzopUd783nknn2rMvcMyjUu7btn2dCve6yKiPMf9c97%2b7LwtYeQcZC%2ffU6iRriJy8ojLxn%2bfejWb'
-                  'jPNYF4mw06Xmqgp3QYg8WxaFkU7TnozQWGRBkknMHUIM2sHwoyZNQ%3d%3d; uidal=8116065114287126AlisaGou; emstat'
-                  '_ss_emcount=24_1513377935_3906866301',
-        'Upgrade-Insecure-Requests': '1',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.323'
-                      '9.84 Safari/537.36'
-    }
 
-
-    def detail_pag(self, url, stock_name,read_vol,comment_vol):
+    def detail_pag(self, urls, stock_name, stock_num, read_vol, comment_vol):
         """
         详情页抓取函数
         :param url: 详情页url
         :return:
         """
+        headers = {
+            'Cookie': 'st_pvi=07289511176421; emstat_bc_emcount=8269995271467659399; em_hq_fls=js; qgqp_b_id=16bc6'
+                      'c0db9e5834747e5244ce183dbf2; HAList=a-sz-300059-%u4E1C%u65B9%u8D22%u5BCC%2Ca-sz-000063-%u4E2'
+                      'D%u5174%u901A%u8BAF; st_si=62317377700088; EmPaVCodeCo=47ebe00218714631853a7a63f9928ab7; sid=1'
+                      '14124340; vtpst=|; ct=ugJ70hWNaio7gPXQTxtTmpLDLh6sdrL8j2rybQIxbDSghfWwbEd_BKHXJriuASTodXFak296K'
+                      'Orlfkxzrbu-NT-U8hpjvtKu3mXqgcyCqO5MJltGLp76DVw_L9ucdTq3hYzozM9aRJ0auXb4A70zvYuCRYtRVO8mQImUy0s'
+                      'hj-E; ut=FobyicMgeV7MP9QJfNEgf8-r9TbKvL5aHhpxUzw7ocvpUgxAb33dnUCv07IaWIFM2GVZHu0fHIdMv8s1jhp0lS'
+                      'WWXjKnSHcQ_Y09rQC1zYUppyOE9wWA5GWXcNRkN0DFEHtiM8VksgjrIAhnWVqslFpiiMOSTgKw9zOeY2sx2OxuZ077q0SGy4'
+                      'BCLG9jY9Vr4SsRaLXwAbpavWMsSCGITBDXDv516Bf9hMNgvbVb-BL-8KgHQWxGjuw2-77DqJyNrYop94tGwlCVSCacv2rUUjB'
+                      'o8HyR9qCI; pi=8116065114287126%3bu8116065114287126%3bAlisaGou%3bTIVcVA9AyoQiZGOIe5yV36bl5oaXoirEJ'
+                      'hVeWh7QdvNf3OVN2%2bVR4FrL3hKFB8V2LzXVwJjzYErPHtx27DTCigSc5OaPon3OvqD%2fMUANcQ2IPRINC7tXrbFotgjh8i'
+                      'oEsYHrZCw6qmNB65r2%2bfNM7jjpsAW%2fZvB6g8Au5h1F6UiYyzixg65mZz5rUb2MAHKTbbt%2fRVFW%3bTS8P9EuPHU6wSEH'
+                      'TJNZBTrv%2fy0vhBPzopUd783nknn2rMvcMyjUu7btn2dCve6yKiPMf9c97%2b7LwtYeQcZC%2ffU6iRriJy8ojLxn%2bfejWb'
+                      'jPNYF4mw06Xmqgp3QYg8WxaFkU7TnozQWGRBkknMHUIM2sHwoyZNQ%3d%3d; uidal=8116065114287126AlisaGou; emstat'
+                      '_ss_emcount=24_1513377935_3906866301',
+            'Upgrade-Insecure-Requests': '1',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.323'
+                          '9.84 Safari/537.36'
+        }
+        r = requests.get(url=urls, headers=headers).text   # 访问url列表？headers为上面的三个？怎么引入IP代理？
+        s = etree.HTML(r)
 
-        r = requests.get(url)
-        s = etree.HTML(r.text)
+        publisher = s.xpath('//*[@id="zwconttbn"]/strong/a/text()')  # 抓取 作者
+        age = s.xpath('//*[@id="zwconttbn"]/span/span[2]/text()')  # 抓取 吧龄
+        time_ = s.xpath('//*[@id="zwconttb"]/div[2]/text()')  # 抓取 时间
+        title = s.xpath('//*[@id="zwconttbt"]/text()')  # 抓取 标题
+        content = s.xpath('//*[@id="zwconbody"]/div/text()')  # 抓取 正文
 
-        publisher = s.xpath('//*[@id="zwconttbn"]/strong/a/text()')
-        age = s.xpath('//*[@id="zwconttbn"]/span/span[2]/text()')
-        time_ = s.xpath('//*[@id="zwconttb"]/div[2]/text()')
-        title = s.xpath('//*[@id="zwconttbt"]/text()')
-        content = s.xpath('//*[@id="zwconbody"]/div/text()')
-
-        data = (stock_name, read_vol, comment_vol, publisher, age, time_, title, title, content)
+        data = (stock_name, stock_num, read_vol, comment_vol, publisher, age, time_, title, title, content)
         _ = self
 
         self.save_data(data)
@@ -176,20 +172,17 @@ class DongFangCaiFuSpider(object):
         """保存数据函数"""
         client = MongoClient()
         db = client.dongfangcaifu  # 创建一个dongfangcaifu数据库
-        my_set = db.guba  # 股吧的集合
-        my_set.insert(data)
-        _ = self
-        _ = data
-        # df = pd.DataFrame.from_dict(readVol, contentsVol, referVol,publisher,age, time, title, content)
-        # df.to_excel('tiezis.xlsx')
-
+        my_set = db.guba  # 创建股吧集合
+        my_set.insert(data)  #插入股吧详情数据
+        _ = self  # 这是？
+        _ = data  # 这又是？传入参数值还是什么?
 
 
 if __name__ == '__main__':
     """执行入口"""
-    spider = DongFangCaiFuSpider()                       # 生产一个爬虫对象
-    guba_url_format_list = spider.get_guba()             # 抓取所有的股吧的样例url
+    spider = DongFangCaiFuSpider()  # 生产一个爬虫对象
+    guba_url_format_list = spider.get_guba()  # 抓取所有的股吧的样例url
 
     # http://guba.eastmoney.com/list,603186_{}.html
-    for url_format_ in guba_url_format_list:             # 遍历
-        spider.list_pag(url_format_)                     # 抓取列表页， 列表页自动抓取详情页。
+    for url_format_ in guba_url_format_list:  # 遍历
+        spider.list_pag()  # 抓取列表页， 列表页自动抓取详情页。
