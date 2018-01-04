@@ -11,47 +11,17 @@ from pymongo import MongoClient
 import socket
 
 
-def request_get(self):  # proxies是函数的变量吗？
+def request_get(url,*args, **kwargs):  # proxies是函数的变量吗？
     """将请求链接包一层，可以统一处理异常，应对一些突发状况，比如统一上代理"""
 
-    headers = {
-        'Cookie': '_free_proxy_session=BAh7B0kiD3Nlc3Npb25faWQGOgZFVEkiJTNhYmYzZmE2OTNmNGYzY2U0ZjM3MWJkMTRkYW'
-                  'M3OTY5BjsAVEkiEF9jc3JmX3Rva2VuBjsARkkiMW1JT0hSVTFOV013WUk4TTI0ZU1QMkx2KzFweDN0MlF4N3F4WW51TWJWbTg9B'
-                  'jsARg%3D%3D--28352b3dbf5c190ec3e77677bfe659707af53a62; Hm_lvt_0cf76c77469e965d2957f0553e6ecf59=1514'
-                  '345289; Hm_lpvt_0cf76c77469e965d2957f0553e6ecf59=1514345289',
-        'If-None-Match': 'W/"046d24145ae6941a3c8238ae60e6f63e"',
-        'Upgrade-Insecure-Requests': '1',
-    }
-    ua = UserAgent()  # 设置UserAgent
-    headers['User-Agent'] = ua.random  # 使用fake-Agent随机生成多个User-Agent，添加到headers
-    url = 'http://www.xicidaili.com/nn/'  # 在西刺代理网站爬取国内免费IP
-    r = requests.get(url, headers=headers).text
-    s = etree.HTML(r)
-    proxy_ip = s.xpath('//*[@id="ip_list"]/tr/td[2]/text()')  # 获取代理IP
-    proxy_port = s.xpath('//*[@id="ip_list"]/tr/td[3]/text()')  # 获取代理端口
-
-    proxies = []  # 设置代理列表
-    for i in range(min(len(proxy_port), len(proxy_ip))):
-        proxy = 'http://' + proxy_ip[i] + ':' + proxy_port[i]
-        ip_proxy = {'http': proxy}
-        proxies.append(ip_proxy)
-
-    socket.setdefaulttimeout(3)  # 3秒延时请求
-    url = "http://ip.chinaz.com/getip.aspx"  # 验证免费IP，选取其中可访问，信号好的
-    for proxy in proxies:
-        try:
-            r = requests.get(url, proxies=proxy).text()
-            print(r)  # 打印可访问的proxy
-        except Exception as e:
-            print(proxy)
-            print(e)
-            continue
-
-    _ = self
-    return proxy  # 返回值 proxy 可以吗？后文如何使用？
+    r = requests.get(url,*args, **kwargs)
+    return r  # 返回值 r
 
 
 class DongFangCaiFuSpider(object):
+
+    headers = dict()  # 初始化
+
     def get_guba(self):
         """获取所有的股吧链接"""
         headers = {
@@ -76,60 +46,65 @@ class DongFangCaiFuSpider(object):
         r = requests.get(url, headers=headers).text
         s = etree.HTML(r)
         stock_num = s.xpath('/html/body/div[5]/div[2]/div[1]/div/ul/li/a/@href')
+
+        urls = list()
+        client = MongoClient()
+        db = client.dongfangcaifu  # 创建一个dongfangcaifu数据库
+        my_set = db.guba_url
+
         for url in stock_num:  # 获取所有证券市场股票对应的东方财富网的股吧链接
-            urls = url[6:12]
-            d = {'stock_num': urls}
+            urls_ = url[6:12]
+            urls.append(urls_)
+            d = {'stock_num': urls_}
             print(d)
-            client = MongoClient()
-            db = client.dongfangcaifu  # 创建一个dongfangcaifu数据库
-            my_set = db.guba_url
+
             my_set.insert(d)  # 插入股吧链接数据,如http://guba.eastmoney.com/list,600000.html
             _ = self  # 传为self参数
         return urls  # 返回一个urls股吧列表
 
-    def get_page_num(self):
-        """获取帖子页码"""
-        urls = self.get_guba()  # 定义股吧链接为 urls
-        for url in urls:  # 遍历每个url
-            r = requests.get(url).text  # 获取url链接
-            s = etree.HTML(r)  # 解析网页
-            page_num = s.xpath('//*[@id="articlelistnew"]/div/span/span/span')  # 获得个股股吧最大页数，无法解决JS加载？
-            _ = self
-        return page_num   #返回page_num，这样写妥否？还是写return或者return[]
-
-    def list_pag(self, url_format):
+    def list_pag(self, url_format: str, stock_code):
         """爬取帖子链接，并抓取详情页"""
-        urls = self.get_guba()
-        page_num = self.get_page_num()
         ua = UserAgent()
         self.headers['User-Agent'] = ua.random  # 使用fake-Agent随机生成User-Agent，添加到headers
 
-        url_format =['http://guba.eastmoney.com/list,{}_{}.html' .format(str(urls), str(i)) for i in range(1, page_num, 1)]  # url改变，如何添加页码翻页？
-        r = request_get(url_format.format(), headers=self.headers).text
+        page_num = 1
 
-        try:
-            s = etree.HTML(r)
-            stock_name = s.xpath('//*[@id="stockname"]/a/text()')  # 股票名称
-            stock_num = self.get_guba()                      # 股吧编号,能否这样写？
-            tiezi_url = s.xpath('//*[@id="articlelistnew"]/div/span[3]/a/@href')  # 帖子链接
-            read_vol = s.xpath('//*[@id="articlelistnew"]/div/span[1]/text()')  # 阅读量
-            comment_vol = s.xpath('//*[@id="articlelistnew"]/div/span[2]/text()')  # 评论量
+        while True:
+            url = url_format.format(page_num)
 
-            for index, url in enumerate(tiezi_url):  # 一个索引类型遍历帖子链接
-                urls = ['http://guba.eastmoney.com{}'.format(str(url))]  # 帖子链接
+            r = request_get(url, headers=self.headers).text
 
-                self.detail_pag(urls, stock_name[index], stock_num[index], read_vol[index], comment_vol[index])  # 自动抓取详情页
-                print('正在爬取第%s页' % str(url + 1))  # 打印"正在爬取第n页"
-                time.sleep(1)  # 设置爬取网页的时间间隔为1秒
+            try:
+                s = etree.HTML(r)
+                stock_name = s.xpath('//*[@id="stockname"]/a/text()')  # 股票名称
+                stock_num = stock_code
+                tiezi_url = s.xpath('//*[@id="articlelistnew"]/div/span[3]/a/@href')  # 帖子链接
 
-        except Exception as e:
-            _ = e    # 啥意思？？
-            print(url_format, r)  # 打印报错信息
-            traceback.print_exc()
+                if not tiezi_url:
+                    break
+
+                read_vol = s.xpath('//*[@id="articlelistnew"]/div/span[1]/text()')  # 阅读量
+                comment_vol = s.xpath('//*[@id="articlelistnew"]/div/span[2]/text()')  # 评论量
+
+                for index, url_ in enumerate(tiezi_url, 1):  # 一个索引类型遍历帖子链接
+
+                    if not url_.startswith('/'):
+                        continue                                # 跳过本次，break跳过全部
+
+                    urls = 'http://guba.eastmoney.com{}'.format(str(url_))  # 帖子链接
+
+                    self.detail_pag(urls, stock_name[0], stock_code, read_vol[index], comment_vol[index])  # 自动抓取详情页
+                    time.sleep(1)  # 设置爬取网页的时间间隔为1秒
+
+            except Exception as e:
+                _ = e    # 占位，产生变量但未使用
+                print(url_format, r)  # 打印报错信息
+                traceback.print_exc()
+            page_num += 1
 
 
 
-    def detail_pag(self, urls, stock_name, stock_num, read_vol, comment_vol):
+    def detail_pag(self, urls, stock_name, stock_code, read_vol, comment_vol):
         """
         详情页抓取函数
         :param url: 详情页url
@@ -157,16 +132,20 @@ class DongFangCaiFuSpider(object):
         r = requests.get(url=urls, headers=headers).text   # 访问url列表？headers为上面的三个？怎么引入IP代理？
         s = etree.HTML(r)
 
-        publisher = s.xpath('//*[@id="zwconttbn"]/strong/a/text()')  # 抓取 作者
-        age = s.xpath('//*[@id="zwconttbn"]/span/span[2]/text()')  # 抓取 吧龄
-        time_ = s.xpath('//*[@id="zwconttb"]/div[2]/text()')  # 抓取 时间
-        title = s.xpath('//*[@id="zwconttbt"]/text()')  # 抓取 标题
-        content = s.xpath('//*[@id="zwconbody"]/div/text()')  # 抓取 正文
+        origin_data = dict()
+        publisher = ''.join(s.xpath('//*[@id="zwconttbn"]/strong/a/text()'))  # 抓取 作者
+        age = ''.join(s.xpath('//*[@id="zwconttbn"]/span/span[2]/text()'))  # 抓取 吧龄
+        time_ = ''.join(s.xpath('//*[@id="zwconttb"]/div[2]/text()'))  # 抓取 时间
+        title = ''.join(s.xpath('//*[@id="zwconttbt"]/text()'))  # 抓取 标题
+        content = ''.join(s.xpath('//*[@id="zwconbody"]/div/text()'))  # 抓取 正文
 
-        data = (stock_name, stock_num, read_vol, comment_vol, publisher, age, time_, title, title, content)
+        origin_data = {'stock_name': stock_name, 'stock_code': stock_code, 'read_vol': read_vol,
+                       'comment_vol': comment_vol, 'publisher': publisher, 'age': age, 'time_': time_,
+                       'title': title, 'content': content}
+
         _ = self
 
-        self.save_data(data)
+        self.save_data(origin_data)
 
     def save_data(self, data):
         """保存数据函数"""
@@ -184,5 +163,6 @@ if __name__ == '__main__':
     guba_url_format_list = spider.get_guba()  # 抓取所有的股吧的样例url
 
     # http://guba.eastmoney.com/list,603186_{}.html
-    for url_format_ in guba_url_format_list:  # 遍历
-        spider.list_pag()  # 抓取列表页， 列表页自动抓取详情页。
+    for stock_code in guba_url_format_list:  # 遍历
+        url_format = 'http://guba.eastmoney.com/list,{}_'.format(stock_code)+'{}.html'
+        spider.list_pag(url_format, stock_code)  # 抓取列表页， 列表页自动抓取详情页。
