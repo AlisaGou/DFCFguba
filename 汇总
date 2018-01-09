@@ -8,13 +8,38 @@ import traceback
 import time
 from fake_useragent import UserAgent
 from pymongo import MongoClient
-import socket
+import pymysql.cursors
 
+ip_proxy = list()
 
-def request_get(url,*args, **kwargs):  # proxies是函数的变量吗？
+def get_proxy_ip_from_mysql():
+    connection = pymysql.connect(host='-------', user='-------', password='-------', db='ip_proxy',
+                                 charset='utf8mb4',
+                                 cursorclass=pymysql.cursors.DictCursor)
+    try:
+        with connection.cursor() as cursor:
+            sql = "SELECT * from lagou WHERE speed > 0 and vali_count > 10 ORDER BY speed"
+            cursor.execute(sql)
+            result = cursor.fetchall()
+            return result
+
+    finally:
+        connection.close()
+
+def request_get(url,*args, **kwargs):
     """将请求链接包一层，可以统一处理异常，应对一些突发状况，比如统一上代理"""
+    global ip_proxy
 
-    r = requests.get(url,*args, **kwargs)
+    if not ip_proxy:
+        ip_proxy = get_proxy_ip_from_mysql()
+    proxy = ip_proxy.pop()
+
+    proxies = {
+        'http': 'http://{ip}:{port}'.format(**proxy),
+        'https': 'http://{ip}:{port}'.format(**proxy),
+    }
+
+    r = requests.get(url, proxies=proxies, *args, **kwargs)
     return r  # 返回值 r
 
 
@@ -77,7 +102,7 @@ class DongFangCaiFuSpider(object):
             try:
                 s = etree.HTML(r)
                 stock_name = s.xpath('//*[@id="stockname"]/a/text()')  # 股票名称
-                stock_num = stock_code
+                stock_code = stock_code
                 tiezi_url = s.xpath('//*[@id="articlelistnew"]/div/span[3]/a/@href')  # 帖子链接
 
                 if not tiezi_url:
@@ -94,7 +119,7 @@ class DongFangCaiFuSpider(object):
                     urls = 'http://guba.eastmoney.com{}'.format(str(url_))  # 帖子链接
 
                     self.detail_pag(urls, stock_name[0], stock_code, read_vol[index], comment_vol[index])  # 自动抓取详情页
-                    time.sleep(1)  # 设置爬取网页的时间间隔为1秒
+                    time.sleep(3)  # 设置爬取网页的时间间隔
 
             except Exception as e:
                 _ = e    # 占位，产生变量但未使用
@@ -159,6 +184,7 @@ class DongFangCaiFuSpider(object):
 
 if __name__ == '__main__':
     """执行入口"""
+    #request_get('http://guba.eastmoney.com/remenba.aspx?type=1')
     spider = DongFangCaiFuSpider()  # 生产一个爬虫对象
     guba_url_format_list = spider.get_guba()  # 抓取所有的股吧的样例url
 
