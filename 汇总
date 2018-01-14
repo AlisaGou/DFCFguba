@@ -26,21 +26,36 @@ def get_proxy_ip_from_mysql():
     finally:
         connection.close()
 
-def request_get(url,*args, **kwargs):
-    """将请求链接包一层，可以统一处理异常，应对一些突发状况，比如统一上代理"""
-    global ip_proxy
+def request_get(url,*args, **kwargs):  # 当函数的参数不确定时，可使用 魔法变量：*args当作容纳多个的list或tuple，**kwargs当作容纳多个键值对的dict.
+    """将请求链接包一层，可以统一处理异常，应对一些突发状况，统一上代理"""
+    global ip_proxy  # ip_proxy为全局变量，以下程序中的ip_proxy都一致
 
-    if not ip_proxy:
-        ip_proxy = get_proxy_ip_from_mysql()
-    proxy = ip_proxy.pop()
+    retrytime = 0
+    while True:
 
-    proxies = {
-        'http': 'http://{ip}:{port}'.format(**proxy),
-        'https': 'http://{ip}:{port}'.format(**proxy),
-    }
+        try:
+            if not ip_proxy:  # 若非ip_proxy
+                ip_proxy = get_proxy_ip_from_mysql()  # ip_proxy为get_proxy_ip_from_mysql()函数所得
+            proxy = ip_proxy.pop()  # 代理使用一次就减少一个，默认移除列表中的最后一个元素
 
-    r = requests.get(url, proxies=proxies, *args, **kwargs)
-    return r  # 返回值 r
+            proxies = {
+                'http': 'http://{ip}:{port}'.format(**proxy),
+                'https': 'http://{ip}:{port}'.format(**proxy),
+            }
+            r = requests.get(url, proxies=proxies, timeout=5, *args, **kwargs)
+
+            return r  # 返回值 r
+
+        except Exception as e:
+
+            _ = e  # 占位，产生变量但未使用
+            traceback.print_exc()
+            retrytime += 1
+            print(retrytime)
+            if retrytime > 5:
+                break
+            elif retrytime < 5:
+                continue
 
 
 class DongFangCaiFuSpider(object):
