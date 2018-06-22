@@ -193,8 +193,8 @@ class DongFangCaiFuSpider(object):
         db = client.dongfangcaifu  # 创建一个dongfangcaifu数据库
         my_set = db.guba  # 创建股吧集合
         my_set.insert(data)  #插入股吧详情数据
-        _ = self  # 这是？
-        _ = data  # 这又是？传入参数值还是什么?
+        _ = self  # 占位符
+        _ = data  # 占位符
 
 
 if __name__ == '__main__':
